@@ -34,8 +34,9 @@ public class UploadPrescriptionPanel extends JFrame {
 
         backBtn.addActionListener(e -> {
             dispose();
-            new StartWindow();
+            new UserDashboardPanel(username);
         });
+
 
         setVisible(true);
     }

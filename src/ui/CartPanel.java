@@ -12,17 +12,18 @@ public class CartPanel extends JFrame {
     private DefaultTableModel model;
     private String username;
     private int selectedOrderId = -1;
+    private String selectedStatus = "";
 
     public CartPanel(String username) {
         this.username = username;
 
-        setTitle("Your Cart (Prescriptions)");
+        setTitle("Your Orders (Cart & History)");
         setSize(700, 400);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        JLabel heading = new JLabel("Your Pending Orders", JLabel.CENTER);
+        JLabel heading = new JLabel("Your Orders", JLabel.CENTER);
         heading.setFont(new Font("Arial", Font.BOLD, 20));
 
         model = new DefaultTableModel(new String[]{"Order ID", "Prescription ID", "Status"}, 0);
@@ -40,12 +41,13 @@ public class CartPanel extends JFrame {
         add(scrollPane, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
 
-        loadCartItems();
+        loadOrders();
 
         cartTable.getSelectionModel().addListSelectionListener(e -> {
             int row = cartTable.getSelectedRow();
             if (row >= 0) {
                 selectedOrderId = Integer.parseInt(model.getValueAt(row, 0).toString());
+                selectedStatus = model.getValueAt(row, 2).toString();
             }
         });
 
@@ -55,20 +57,12 @@ public class CartPanel extends JFrame {
                 return;
             }
 
-            try {
-                Connection con = DBConnection.getConnection();
-                PreparedStatement ps = con.prepareStatement("UPDATE orders SET status = ? WHERE id = ?");
-                ps.setString(1, "Requested");
-                ps.setInt(2, selectedOrderId);
-                ps.executeUpdate();
-
-                JOptionPane.showMessageDialog(this, "Order Request Sent!");
-                dispose();
-                new CartPanel(username); // Refresh cart
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                JOptionPane.showMessageDialog(this, "Failed to update order status.");
+            if (!selectedStatus.equals("Pending in Cart")) {
+                JOptionPane.showMessageDialog(this, "Only 'Pending in Cart' orders can be requested.");
+                return;
             }
+
+            showPaymentMethodDialog();
         });
 
         backBtn.addActionListener(e -> {
@@ -79,12 +73,11 @@ public class CartPanel extends JFrame {
         setVisible(true);
     }
 
-    private void loadCartItems() {
-        model.setRowCount(0); // Clear table
+    private void loadOrders() {
+        model.setRowCount(0);
         try {
             Connection con = DBConnection.getConnection();
 
-            // Get user_id using username
             PreparedStatement ps1 = con.prepareStatement("SELECT id FROM users WHERE username = ?");
             ps1.setString(1, username);
             ResultSet rs1 = ps1.executeQuery();
@@ -96,7 +89,7 @@ public class CartPanel extends JFrame {
 
             if (userId != -1) {
                 PreparedStatement ps2 = con.prepareStatement(
-                        "SELECT id, prescription_id, status FROM orders WHERE user_id = ? AND status = 'Pending in Cart'");
+                        "SELECT id, prescription_id, status FROM orders WHERE user_id = ?");
                 ps2.setInt(1, userId);
                 ResultSet rs2 = ps2.executeQuery();
 
@@ -110,6 +103,45 @@ public class CartPanel extends JFrame {
             }
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private void showPaymentMethodDialog() {
+        JRadioButton codBtn = new JRadioButton("Cash on Delivery (COD)");
+        codBtn.setSelected(true);
+        JRadioButton upiBtn = new JRadioButton("UPI (Coming Soon)");
+        upiBtn.setEnabled(false);
+        JRadioButton netBankBtn = new JRadioButton("Net Banking (Coming Soon)");
+        netBankBtn.setEnabled(false);
+
+        ButtonGroup group = new ButtonGroup();
+        group.add(codBtn);
+        group.add(upiBtn);
+        group.add(netBankBtn);
+
+        JPanel panel = new JPanel(new GridLayout(4, 1));
+        panel.add(new JLabel("Choose Payment Method:"));
+        panel.add(codBtn);
+        panel.add(upiBtn);
+        panel.add(netBankBtn);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Payment Method", JOptionPane.OK_CANCEL_OPTION);
+        if (result == JOptionPane.OK_OPTION) {
+            try {
+                Connection con = DBConnection.getConnection();
+                PreparedStatement ps = con.prepareStatement("UPDATE orders SET status = ?, payment_method = ? WHERE id = ?");
+                ps.setString(1, "Requested");
+                ps.setString(2, "Cash on Delivery");
+                ps.setInt(3, selectedOrderId);
+                ps.executeUpdate();
+
+                JOptionPane.showMessageDialog(this, "Order Request Sent Successfully!");
+                dispose();
+                new CartPanel(username); // refresh
+            } catch (Exception e) {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(this, "Failed to send order request.");
+            }
         }
     }
 }

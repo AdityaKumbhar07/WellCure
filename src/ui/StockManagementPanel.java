@@ -13,12 +13,12 @@ public class StockManagementPanel extends JFrame {
 
     public StockManagementPanel() {
         setTitle("Manage Stock");
-        setSize(700, 400);
+        setSize(800, 400);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        JLabel heading = new JLabel("Medicine Stock", JLabel.CENTER);
+        JLabel heading = new JLabel("Medicine Inventory", JLabel.CENTER);
         heading.setFont(new Font("Arial", Font.BOLD, 20));
 
         model = new DefaultTableModel(new String[]{"ID", "Name", "Type", "Price", "Stock"}, 0);
@@ -26,12 +26,14 @@ public class StockManagementPanel extends JFrame {
         JScrollPane scrollPane = new JScrollPane(table);
 
         JButton addBtn = new JButton("Add Medicine");
-        JButton modifyBtn = new JButton("Modify Stock");
+        JButton modifyBtn = new JButton("Modify Selected");
+        JButton deleteBtn = new JButton("Delete Selected");
         JButton backBtn = new JButton("Back");
 
         JPanel bottomPanel = new JPanel();
         bottomPanel.add(addBtn);
         bottomPanel.add(modifyBtn);
+        bottomPanel.add(deleteBtn);
         bottomPanel.add(backBtn);
 
         add(heading, BorderLayout.NORTH);
@@ -41,7 +43,8 @@ public class StockManagementPanel extends JFrame {
         loadMedicines();
 
         addBtn.addActionListener(e -> addMedicine());
-        modifyBtn.addActionListener(e -> modifyStock());
+        modifyBtn.addActionListener(e -> modifySelectedMedicine());
+        deleteBtn.addActionListener(e -> deleteSelectedMedicine());
         backBtn.addActionListener(e -> {
             dispose();
             new AdminDashboardPanel();
@@ -51,20 +54,20 @@ public class StockManagementPanel extends JFrame {
     }
 
     private void loadMedicines() {
-        model.setRowCount(0); // clear table first
+        model.setRowCount(0); // Clear table
         try {
             Connection con = DBConnection.getConnection();
             PreparedStatement ps = con.prepareStatement("SELECT * FROM medicines");
             ResultSet rs = ps.executeQuery();
 
             while (rs.next()) {
-                int id = rs.getInt("id");
-                String name = rs.getString("name");
-                String type = rs.getString("type");
-                double price = rs.getDouble("price");
-                int stock = rs.getInt("stock");
-
-                model.addRow(new Object[]{id, name, type, price, stock});
+                model.addRow(new Object[]{
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getString("type"),
+                        rs.getDouble("price"),
+                        rs.getInt("stock")
+                });
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -83,57 +86,93 @@ public class StockManagementPanel extends JFrame {
         panel.add(new JLabel("Price:")); panel.add(priceField);
         panel.add(new JLabel("Stock:")); panel.add(stockField);
 
-        int result = JOptionPane.showConfirmDialog(null, panel, "Add New Medicine", JOptionPane.OK_CANCEL_OPTION);
+        int result = JOptionPane.showConfirmDialog(this, panel, "Add New Medicine", JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
             try {
-                String name = nameField.getText().trim();
-                String type = typeField.getText().trim();
-                double price = Double.parseDouble(priceField.getText().trim());
-                int stock = Integer.parseInt(stockField.getText().trim());
-
                 Connection con = DBConnection.getConnection();
                 PreparedStatement ps = con.prepareStatement("INSERT INTO medicines(name, type, price, stock) VALUES (?, ?, ?, ?)");
-                ps.setString(1, name);
-                ps.setString(2, type);
-                ps.setDouble(3, price);
-                ps.setInt(4, stock);
+                ps.setString(1, nameField.getText().trim());
+                ps.setString(2, typeField.getText().trim());
+                ps.setDouble(3, Double.parseDouble(priceField.getText().trim()));
+                ps.setInt(4, Integer.parseInt(stockField.getText().trim()));
                 ps.executeUpdate();
 
-                JOptionPane.showMessageDialog(this, "Medicine Added Successfully!");
+                JOptionPane.showMessageDialog(this, "Medicine Added!");
                 loadMedicines();
             } catch (Exception e) {
                 e.printStackTrace();
-                JOptionPane.showMessageDialog(this, "Invalid input. Please try again.");
+                JOptionPane.showMessageDialog(this, "Invalid input.");
             }
         }
     }
 
-    private void modifyStock() {
-        int selectedRow = table.getSelectedRow();
-        if (selectedRow == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a medicine first.");
+    private void modifySelectedMedicine() {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Select a medicine first!");
             return;
         }
 
-        int medicineId = (int) model.getValueAt(selectedRow, 0);
-        String medicineName = model.getValueAt(selectedRow, 1).toString();
+        int id = (int) model.getValueAt(row, 0);
+        String name = model.getValueAt(row, 1).toString();
+        String type = model.getValueAt(row, 2).toString();
+        String price = model.getValueAt(row, 3).toString();
+        String stock = model.getValueAt(row, 4).toString();
 
-        String newStockStr = JOptionPane.showInputDialog(this, "Enter new stock for " + medicineName + ":");
-        if (newStockStr != null) {
+        JTextField nameField = new JTextField(name);
+        JTextField typeField = new JTextField(type);
+        JTextField priceField = new JTextField(price);
+        JTextField stockField = new JTextField(stock);
+
+        JPanel panel = new JPanel(new GridLayout(4, 2));
+        panel.add(new JLabel("Name:")); panel.add(nameField);
+        panel.add(new JLabel("Type:")); panel.add(typeField);
+        panel.add(new JLabel("Price:")); panel.add(priceField);
+        panel.add(new JLabel("Stock:")); panel.add(stockField);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Edit Medicine", JOptionPane.OK_CANCEL_OPTION);
+        if (result == JOptionPane.OK_OPTION) {
             try {
-                int newStock = Integer.parseInt(newStockStr);
-
                 Connection con = DBConnection.getConnection();
-                PreparedStatement ps = con.prepareStatement("UPDATE medicines SET stock = ? WHERE id = ?");
-                ps.setInt(1, newStock);
-                ps.setInt(2, medicineId);
+                PreparedStatement ps = con.prepareStatement(
+                        "UPDATE medicines SET name = ?, type = ?, price = ?, stock = ? WHERE id = ?");
+                ps.setString(1, nameField.getText().trim());
+                ps.setString(2, typeField.getText().trim());
+                ps.setDouble(3, Double.parseDouble(priceField.getText().trim()));
+                ps.setInt(4, Integer.parseInt(stockField.getText().trim()));
+                ps.setInt(5, id);
                 ps.executeUpdate();
 
-                JOptionPane.showMessageDialog(this, "Stock updated successfully!");
+                JOptionPane.showMessageDialog(this, "Medicine Updated!");
                 loadMedicines();
             } catch (Exception e) {
                 e.printStackTrace();
-                JOptionPane.showMessageDialog(this, "Invalid stock value.");
+                JOptionPane.showMessageDialog(this, "Invalid input.");
+            }
+        }
+    }
+
+    private void deleteSelectedMedicine() {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Select a medicine to delete!");
+            return;
+        }
+
+        int id = (int) model.getValueAt(row, 0);
+        int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete this medicine?", "Confirm Delete", JOptionPane.YES_NO_OPTION);
+        if (confirm == JOptionPane.YES_OPTION) {
+            try {
+                Connection con = DBConnection.getConnection();
+                PreparedStatement ps = con.prepareStatement("DELETE FROM medicines WHERE id = ?");
+                ps.setInt(1, id);
+                ps.executeUpdate();
+
+                JOptionPane.showMessageDialog(this, "Medicine Deleted!");
+                loadMedicines();
+            } catch (Exception e) {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(this, "Failed to delete.");
             }
         }
     }

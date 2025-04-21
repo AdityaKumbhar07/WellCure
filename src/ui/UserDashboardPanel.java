@@ -1,66 +1,140 @@
 package src.ui;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.*;
+import java.sql.*;
+import src.db.DBConnection;
 
 public class UserDashboardPanel extends JFrame {
     private String username;
+    private JTable medicineTable;
+    private DefaultTableModel model;
 
     public UserDashboardPanel(String username) {
         this.username = username;
 
         setTitle("User Dashboard");
-        setSize(500, 400);
+        setSize(800, 500);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        JLabel welcomeLabel = new JLabel("Welcome, " + username, JLabel.CENTER);
-        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 20));
+        // TOP panel with Back & Account
+        JPanel topPanel = new JPanel(new BorderLayout());
+        JButton backBtn = new JButton("⬅ Back");
+        JButton accountBtn = new JButton("Account 👤");
 
-        JButton viewMedicinesBtn = new JButton("View Available Medicines");
-        JButton uploadPrescriptionBtn = new JButton("Upload Prescription");
-        JButton cartBtn = new JButton("View Cart");
-        JButton accountBtn = new JButton("My Account");
-        JButton logoutBtn = new JButton("Logout");
+        topPanel.add(backBtn, BorderLayout.WEST);
+        topPanel.add(accountBtn, BorderLayout.EAST);
 
-        JPanel centerPanel = new JPanel(new GridLayout(5, 1, 15, 15));
-        centerPanel.setBorder(BorderFactory.createEmptyBorder(20, 60, 20, 60));
-        centerPanel.add(viewMedicinesBtn);
-        centerPanel.add(uploadPrescriptionBtn);
-        centerPanel.add(cartBtn);
-        centerPanel.add(accountBtn);
-        centerPanel.add(logoutBtn);
+        // Search Panel
+        JPanel searchPanel = new JPanel(new BorderLayout(5, 5));
+        JTextField searchField = new JTextField();
+        JButton searchBtn = new JButton("Search 🔍");
 
-        add(welcomeLabel, BorderLayout.NORTH);
+        searchPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        searchPanel.add(searchField, BorderLayout.CENTER);
+        searchPanel.add(searchBtn, BorderLayout.EAST);
+
+        // Medicine table
+        model = new DefaultTableModel(new String[]{"ID", "Name", "Type", "Price", "Stock"}, 0);
+        medicineTable = new JTable(model);
+        JScrollPane scrollPane = new JScrollPane(medicineTable);
+
+        // Bottom buttons: Upload + Orders
+        JPanel bottomPanel = new JPanel();
+        JButton uploadBtn = new JButton("📤 Upload Prescription");
+        JButton ordersBtn = new JButton("🛒 My Orders");
+
+        bottomPanel.add(uploadBtn);
+        bottomPanel.add(ordersBtn);
+
+
+        // Adding components to main layout
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.add(searchPanel, BorderLayout.NORTH);
+        centerPanel.add(scrollPane, BorderLayout.CENTER);
+
+        add(topPanel, BorderLayout.NORTH);
         add(centerPanel, BorderLayout.CENTER);
+        add(bottomPanel, BorderLayout.SOUTH);
 
-        viewMedicinesBtn.addActionListener(e -> {
+        // Action listeners
+        backBtn.addActionListener(e -> {
             dispose();
-            new ViewMedicinesPanel(username); // We'll create this next
-        });
-
-        uploadPrescriptionBtn.addActionListener(e -> {
-            dispose();
-            new UploadPrescriptionPanel(username); // Modified version to save in cart only
-        });
-
-        cartBtn.addActionListener(e -> {
-            dispose();
-            new CartPanel(username); // We'll create this later
+            new StartWindow(); // You can change this to a logout confirmation if needed
         });
 
         accountBtn.addActionListener(e -> {
             dispose();
-            new AccountPanel(username); // User info panel
+            new AccountPanel(username);
         });
 
-        logoutBtn.addActionListener(e -> {
+        uploadBtn.addActionListener(e -> {
             dispose();
-            new StartWindow();
+            new UploadPrescriptionPanel(username);
         });
 
+        ordersBtn.addActionListener(e -> {
+            dispose();
+            new CartPanel(username); // ← opens the order history & cart page
+        });
+
+        searchBtn.addActionListener(e -> {
+            String query = searchField.getText().trim().toLowerCase();
+            filterMedicines(query);
+        });
+
+        loadAllMedicines();
         setVisible(true);
+    }
+
+
+    private void loadAllMedicines() {
+        model.setRowCount(0);
+        try {
+            Connection con = DBConnection.getConnection();
+            PreparedStatement ps = con.prepareStatement("SELECT * FROM medicines");
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                model.addRow(new Object[]{
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getString("type"),
+                        rs.getDouble("price"),
+                        rs.getInt("stock")
+                });
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void filterMedicines(String keyword) {
+        model.setRowCount(0);
+        try {
+            Connection con = DBConnection.getConnection();
+            PreparedStatement ps = con.prepareStatement("SELECT * FROM medicines");
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                String name = rs.getString("name").toLowerCase();
+                String type = rs.getString("type").toLowerCase();
+
+                if (name.contains(keyword) || type.contains(keyword)) {
+                    model.addRow(new Object[]{
+                            rs.getInt("id"),
+                            rs.getString("name"),
+                            rs.getString("type"),
+                            rs.getDouble("price"),
+                            rs.getInt("stock")
+                    });
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
